@@ -1,0 +1,64 @@
+on:
+    push:
+        tags:
+            - '*'
+
+jobs:
+    linux:
+        runs-on: ubuntu-latest
+        steps:
+            -   run: |
+                    sudo dpkg --add-architecture arm64
+                    sudo bash -c 'cat > /etc/apt/sources.list.d/arm64.list <<EOF
+                    deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy           main restricted universe multiverse
+                    deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates   main restricted universe multiverse
+                    deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main restricted universe multiverse
+                    EOF'
+                    sudo sed -i -e 's/deb http/deb [arch=amd64] http/g' /etc/apt/sources.list
+                    sudo sed -i -e 's/deb mirror/deb [arch=amd64] mirror/g' /etc/apt/sources.list
+                    sudo apt update
+                    sudo apt install -y clang llvm binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu zlib1g-dev:arm64
+            -   uses: actions/checkout@v4
+            -   uses: actions/setup-dotnet@v3
+            -   run: dotnet publish BitCrypt/BitCrypt.csproj -c Release -r linux-x64   -o ./publish-x64
+            -   run: dotnet publish BitCrypt/BitCrypt.csproj -c Release -r linux-arm64 -o ./publish-arm64
+            -   run: zip -j ${{ github.event.repository.name }}-linux-x64.zip   publish-x64/BitCrypt
+            -   run: zip -j ${{ github.event.repository.name }}-linux-arm64.zip publish-arm64/BitCrypt
+            -   uses: svenstaro/upload-release-action@v2
+                with:
+                    repo_token: ${{ secrets.GITHUB_TOKEN }}
+                    tag: ${{ github.ref }}
+                    file_glob: true
+                    file: "*.zip"
+
+    windows:
+        runs-on: windows-latest
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: actions/setup-dotnet@v3
+            -   run: dotnet publish BitCrypt/BitCrypt.csproj -c Release -r win-x64   -o ./publish-x64
+            -   run: dotnet publish BitCrypt/BitCrypt.csproj -c Release -r win-arm64 -o ./publish-arm64
+            -   run: Compress-Archive -Destination ${{ github.event.repository.name }}-win-x64.zip   -Path publish-x64/BitCrypt.exe
+            -   run: Compress-Archive -Destination ${{ github.event.repository.name }}-win-arm64.zip -Path publish-arm64/BitCrypt.exe
+            -   uses: svenstaro/upload-release-action@v2
+                with:
+                    repo_token: ${{ secrets.GITHUB_TOKEN }}
+                    tag: ${{ github.ref }}
+                    file_glob: true
+                    file: "*.zip"
+
+    osx:
+        runs-on: osx-latest
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: actions/setup-dotnet@v3
+            -   run: dotnet publish BitCrypt/BitCrypt.csproj -c Release -r osx-x64   -o ./publish-x64
+            -   run: dotnet publish BitCrypt/BitCrypt.csproj -c Release -r osx-arm64 -o ./publish-arm64
+            -   run: zip -j ${{ github.event.repository.name }}-osx-x64.zip   publish-x64/BitCrypt
+            -   run: zip -j ${{ github.event.repository.name }}-osx-arm64.zip publish-arm64/BitCrypt
+            -   uses: svenstaro/upload-release-action@v2
+                with:
+                    repo_token: ${{ secrets.GITHUB_TOKEN }}
+                    tag: ${{ github.ref }}
+                    file_glob: true
+                    file: "*.zip"
